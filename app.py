@@ -9,11 +9,7 @@ from langchain.vectorstores import FAISS
 from langchain.llms import OpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
-# from pydantic import BaseSettings
 import os
- 
-# class Settings(BaseSettings):
-#     openai_api_key: str
 
 # Sidebar contents
 with st.sidebar:
@@ -28,16 +24,21 @@ with st.sidebar:
     ''')
     add_vertical_space(5)
     st.write('🏗️Crafted by [Abdullah Firdowsi](https://github.com/abdullahfirdowsi)')
- 
+
 load_dotenv()
- 
+
+# Get OpenAI API key from environment variable or user input
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if openai_api_key is None:
+    openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password")
+    st.write("Please enter your OpenAI API Key")
+
 def main():
     st.header("Chat with PDF 💬")
     
     # upload a PDF file
     pdf = st.file_uploader("Upload your PDF", type='pdf')
  
-    # st.write(pdf)
     if pdf is not None:
         pdf_reader = PdfReader(pdf)
         
@@ -52,30 +53,22 @@ def main():
             )
         chunks = text_splitter.split_text(text=text)
  
-        # # embeddings
-        store_name = pdf.name[:-4]
-        st.write(f'{store_name}')
-        # st.write(chunks)
-        if os.path.exists(f"{store_name}.pkl"):
-            with open(f"{store_name}.pkl", "rb") as f:
+        if os.path.exists(f"{pdf.name[:-4]}.pkl"):
+            with open(f"{pdf.name[:-4]}.pkl", "rb") as f:
                 VectorStore = pickle.load(f)
         else:
-            embeddings = OpenAIEmbeddings()
+            embeddings = OpenAIEmbeddings(api_key=openai_api_key)
             VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
-            with open(f"{store_name}.pkl", "wb") as f:
+            with open(f"{pdf.name[:-4]}.pkl", "wb") as f:
                 pickle.dump(VectorStore, f)
- 
-        # embeddings = OpenAIEmbeddings()
-        # VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
  
         # Accept user questions/query
         query = st.text_input("Ask questions about your PDF file:")
-        # st.write(query)
  
         if query:
             docs = VectorStore.similarity_search(query=query, k=3)
  
-            llm = OpenAI()
+            llm = OpenAI(api_key=openai_api_key)
             chain = load_qa_chain(llm=llm, chain_type="stuff")
             with get_openai_callback() as cb:
                 response = chain.run(input_documents=docs, question=query)
